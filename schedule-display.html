@@ -85,6 +85,8 @@
     font-weight:600; padding-top:10px;
   }
   .sched-table td.value{ font-weight:500; padding-top:9px; }
+  .field-line{ line-height:1.5; }
+  .field-line + .field-line{ margin-top:2px; }
   .empty-val{ color:#B8B8B8; font-style:italic; font-weight:400; }
   .tag{
     display:inline-block; font-size:.68rem; font-weight:700; letter-spacing:.03em;
@@ -117,8 +119,8 @@
 
 <script>
 // ====== GITHUB CONFIG — must match schedule-admin.html ======
-const GH_OWNER  = 'baldguy-s';
-const GH_REPO   = 'bbcff-serv-sched';
+const GH_OWNER  = 'YOUR_GITHUB_USERNAME';
+const GH_REPO   = 'YOUR_REPO_NAME';
 const GH_BRANCH = 'main';
 const GH_PATH   = 'schedule-data.json';
 // ==============================================================
@@ -161,9 +163,16 @@ function ynTag(v){
   return '<span class="tag no">NO</span>';
 }
 
+function line(html){ return `<div class="field-line">${html}</div>`; }
+
 function singerRowsHtml(singer, prefix){
   const label = prefix ? prefix : 'Special Singer';
-  return `<tr><td class="label">${label}</td><td class="value">${val(singer.name)}${singer.name ? ' <span style="color:var(--slate);font-weight:400;">— '+escapeHtml(singer.music)+'</span>' : ''}${singer.name ? ' &nbsp;Sound Check:'+ynTag(singer.soundCheck) : ''}</td></tr>`;
+  const lines = [line(val(singer.name))];
+  if (singer.name){
+    lines.push(line(`Music: ${escapeHtml(singer.music)}`));
+    lines.push(line(`Sound Check: ${ynTag(singer.soundCheck)}`));
+  }
+  return `<tr><td class="label">${label}</td><td class="value">${lines.join('')}</td></tr>`;
 }
 
 function labelFor(base, index, total){
@@ -177,17 +186,19 @@ function buildSpecialRows(entry){
   const speakers = entry.speakers || [];
 
   songLeaders.forEach((sl, i) => {
-    rows.push(`<tr><td class="label">${labelFor('Song Leader', i, songLeaders.length)}</td><td class="value">${val(sl.name)}</td></tr>`);
+    rows.push(`<tr><td class="label">${labelFor('Song Leader', i, songLeaders.length)}</td><td class="value">${line(val(sl.name))}</td></tr>`);
   });
   singers.forEach((s, i) => {
     rows.push(singerRowsHtml(s, labelFor('Singer', i, singers.length)));
   });
   speakers.forEach((sp, i) => {
-    rows.push(`<tr><td class="label">${labelFor('Speaker', i, speakers.length)}</td><td class="value">${val(sp.name)} &nbsp;Multimedia:${ynTag(sp.multimedia)}</td></tr>`);
+    const lines = [line(val(sp.name))];
+    if (sp.name) lines.push(line(`Multimedia: ${ynTag(sp.multimedia)}`));
+    rows.push(`<tr><td class="label">${labelFor('Speaker', i, speakers.length)}</td><td class="value">${lines.join('')}</td></tr>`);
   });
 
   if (rows.length === 0){
-    rows.push(`<tr><td class="label">Details</td><td class="value"><span class="empty-val">Not yet assigned</span></td></tr>`);
+    rows.push(`<tr><td class="label">Details</td><td class="value">${line('<span class="empty-val">Not yet assigned</span>')}</td></tr>`);
   }
   return rows;
 }
@@ -206,7 +217,7 @@ function buildTable(entry){
   }
 
   const rows = [];
-  rows.push(`<tr><td class="label">Song Leader</td><td class="value">${val(entry.songLeader.name)}</td></tr>`);
+  rows.push(`<tr><td class="label">Song Leader</td><td class="value">${line(val(entry.songLeader.name))}</td></tr>`);
 
   if (entry.type === 'sunday_pm'){
     rows.push(singerRowsHtml(entry.singerAfterPrayer, 'Singer — After Prayer'));
@@ -216,10 +227,12 @@ function buildTable(entry){
   }
 
   if (entry.choir){
-    rows.push(`<tr><td class="label">Choir</td><td class="value">Slot ${escapeHtml(entry.choir.slot)} &nbsp;Solo:${ynTag(entry.choir.solo || 'N')}</td></tr>`);
+    const choirLines = [line(`Slot: ${escapeHtml(entry.choir.slot)}`), line(`Solo: ${ynTag(entry.choir.solo || 'N')}`)];
+    rows.push(`<tr><td class="label">Choir</td><td class="value">${choirLines.join('')}</td></tr>`);
   }
 
-  rows.push(`<tr><td class="label">Speaker</td><td class="value">${val(entry.speaker.name)} &nbsp;Multimedia:${ynTag(entry.speaker.multimedia)}</td></tr>`);
+  const speakerLines = [line(val(entry.speaker.name)), line(`Multimedia: ${ynTag(entry.speaker.multimedia)}`)];
+  rows.push(`<tr><td class="label">Speaker</td><td class="value">${speakerLines.join('')}</td></tr>`);
 
   const captionTitle = formatDate(entry.date);
   const captionSub = '';
@@ -230,6 +243,7 @@ function buildTable(entry){
       <span class="badge">${dayTypeLabel(entry.type)}${captionSub ? ' · ' + captionSub : ''}</span>
     </caption>
     <tbody>${rows.join('')}</tbody>
+
   </table>`;
 }
 
