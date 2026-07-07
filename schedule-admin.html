@@ -300,6 +300,20 @@
     <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Synced</span></div>
     <button class="add-btn" id="openSpecialBtn">+ Add Special Service</button>
   </div>
+  <div style="text-align:right;">
+    <button id="changeTokenBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Change GitHub token</button>
+  </div>
+</div>
+
+<div class="special-form" id="tokenForm">
+  <div>
+    <label>GitHub Personal Access Token</label>
+    <input type="password" id="tokenInput" placeholder="ghp_… (fine-grained, Contents: Read & write on this repo only)">
+  </div>
+  <div class="btn-row">
+    <button class="cancel" id="tokenCancelBtn">Cancel</button>
+    <button class="save" id="tokenSaveBtn">Save Token</button>
+  </div>
 </div>
 
 <div class="special-form" id="specialForm">
@@ -322,14 +336,66 @@
 </main>
 
 <footer class="note">
-  Schedule data is stored in shared cloud storage tied to this page — anyone with this link can view and edit it. Past dates drop off the list automatically as they pass.
+  Schedule data is saved as a JSON file in your GitHub repo. Your token stays in this browser's local storage only — it is never written into the page or the repo. Past dates drop off the list automatically as they pass.
 </footer>
 
 <script>
-const STORAGE_KEY = 'choir-schedule-entries';
+// ====== GITHUB CONFIG — fill these in for your repo ======
+const GH_OWNER  = 'baldguy-s';   // e.g. 'sblackwell'
+const GH_REPO   = 'bbcff-serv-sched';         // e.g. 'choir-schedule'
+const GH_BRANCH = 'main';                   // your default branch
+const GH_PATH   = 'schedule-data.json';     // where the data file lives in the repo
+// ===========================================================
+
+const TOKEN_KEY = 'gh_pat_choir_schedule';
 const MUSIC_OPTIONS = ['Acapella','CD','Other Instrument','PC','Piano','Unknown'];
 let entries = [];
 let saveTimer = null;
+let currentSha = null;
+
+function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
+function setToken(t){ localStorage.setItem(TOKEN_KEY, t); }
+
+function b64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64DecodeUtf8(str){ return decodeURIComponent(escape(atob(str.replace(/\n/g,'')))); }
+
+async function ghGetFile(){
+  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(GH_PATH)}?ref=${GH_BRANCH}&t=${Date.now()}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      Accept: 'application/vnd.github+json'
+    }
+  });
+  if (res.status === 404){ return { content: null, sha: null }; }
+  if (!res.ok) throw new Error('GitHub read failed (' + res.status + ')');
+  const data = await res.json();
+  return { content: b64DecodeUtf8(data.content), sha: data.sha };
+}
+
+async function ghPutFile(contentStr, sha){
+  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(GH_PATH)}`;
+  const body = {
+    message: 'Update choir schedule',
+    content: b64EncodeUtf8(contentStr),
+    branch: GH_BRANCH
+  };
+  if (sha) body.sha = sha;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok){
+    const errBody = await res.text();
+    throw new Error('GitHub write failed (' + res.status + '): ' + errBody);
+  }
+  return await res.json();
+}
 
 function pad(n){ return n.toString().padStart(2,'0'); }
 function toISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
@@ -438,19 +504,26 @@ function computeInsertOrder(dateISO){
   return 0;
 }
 
-function setStatus(mode){
+function setStatus(mode, extra){
   const dot = document.getElementById('statusDot');
   const text = document.getElementById('statusText');
   dot.className = 'status-dot' + (mode==='saving' ? ' saving' : mode==='error' ? ' error' : '');
-  text.textContent = mode==='saving' ? 'Saving…' : mode==='error' ? 'Save failed — retrying' : 'Synced';
+  text.textContent = mode==='saving' ? 'Saving…'
+    : mode==='error' ? ('Save failed' + (extra ? ' — ' + extra : ' — check token/repo'))
+    : 'Synced to GitHub';
 }
 
 async function loadData(){
+  setStatus('saving');
   try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    entries = res && res.value ? JSON.parse(res.value) : null;
+    const { content, sha } = await ghGetFile();
+    currentSha = sha;
+    entries = content ? JSON.parse(content) : null;
   } catch(e){
+    console.error(e);
     entries = null;
+    setStatus('error', e.message);
+    return;
   }
   if (!entries || !Array.isArray(entries) || entries.length === 0){
     entries = generateInitialEntries();
@@ -469,6 +542,7 @@ async function loadData(){
       migrated = true;
     }
     if (migrated) await persist();
+    else setStatus('synced');
   }
   render();
 }
@@ -476,15 +550,23 @@ async function loadData(){
 function debouncedSave(){
   setStatus('saving');
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(persist, 700);
+  saveTimer = setTimeout(persist, 900);
 }
 
 async function persist(){
   try{
-    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(entries), true);
-    setStatus(result ? 'synced' : 'error');
+    // Re-check the latest sha first so we don't clobber a change made from another device.
+    let sha = currentSha;
+    try{
+      const latest = await ghGetFile();
+      sha = latest.sha;
+    } catch(inner){ /* fall back to last-known sha */ }
+    const result = await ghPutFile(JSON.stringify(entries), sha);
+    currentSha = result && result.content ? result.content.sha : currentSha;
+    setStatus('synced');
   } catch(e){
-    setStatus('error');
+    console.error(e);
+    setStatus('error', e.message);
   }
 }
 
@@ -1010,7 +1092,35 @@ document.getElementById('saveSpecialBtn').addEventListener('click', () => {
   render();
 });
 
-loadData();
+// Token form wiring
+const tokenForm = document.getElementById('tokenForm');
+document.getElementById('changeTokenBtn').addEventListener('click', () => {
+  document.getElementById('tokenInput').value = '';
+  tokenForm.classList.add('open');
+});
+document.getElementById('tokenCancelBtn').addEventListener('click', () => {
+  tokenForm.classList.remove('open');
+});
+document.getElementById('tokenSaveBtn').addEventListener('click', () => {
+  const val = document.getElementById('tokenInput').value.trim();
+  if (!val){ alert('Paste your GitHub token first.'); return; }
+  setToken(val);
+  tokenForm.classList.remove('open');
+  loadData();
+});
+
+function init(){
+  if (!getToken()){
+    document.getElementById('schedule').innerHTML =
+      '<div class="empty-state">Add your GitHub token above to load and edit the schedule.</div>';
+    tokenForm.classList.add('open');
+    setStatus('error', 'no token set');
+    return;
+  }
+  loadData();
+}
+
+init();
 </script>
 </body>
 </html>
