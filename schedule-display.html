@@ -17,7 +17,23 @@
     --slate:#6B6B6B;
     --line: rgba(0,0,0,0.10);
   }
+  body.dark-mode{
+    --paper:#17181A;
+    --red:#C6505C;
+    --red-deep:#A85560;
+    --banner-gray:#4A4A4A;
+    --offwhite:#232426;
+    --ink:#F0EFEC;
+    --slate:#A3A3A3;
+    --line: rgba(255,255,255,0.12);
+  }
+  body.dark-mode .sched-table{ background:#1F2022; }
+  body.dark-mode .sched-table caption{ background:var(--offwhite); }
+  body.dark-mode .tag.yes{ background:#25381F; color:#9FDB8C; }
+  body.dark-mode .tag.no{ background:#3A2323; color:#E3A6A6; }
+  body.dark-mode .chip-btn{ background:#232426; color:var(--ink); }
   *{box-sizing:border-box;}
+  html{ font-size:16px; }
   html,body{margin:0;padding:0;}
   body{
     background:var(--paper);
@@ -99,6 +115,54 @@
     max-width:760px;margin:20px auto 0;padding:0 16px;
     font-size:.72rem;color:var(--slate);line-height:1.6;text-align:center;
   }
+
+  /* ---------- Sticky controls (text size + filters) ---------- */
+  .sticky-bar{
+    position:sticky; top:0; z-index:20;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    box-shadow:0 2px 6px rgba(0,0,0,0.04);
+    padding:10px 14px;
+  }
+  .sticky-bar-inner{
+    max-width:760px; margin:0 auto;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .control-row{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .control-label{
+    font-size:.65rem; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--slate); font-weight:600; margin-right:2px;
+  }
+  .chip-btn{
+    background:white; border:1px solid var(--line); color:var(--slate);
+    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.74rem;
+    padding:6px 11px; border-radius:20px; cursor:pointer; white-space:nowrap;
+  }
+  .chip-btn.active{ background:var(--ink); color:white; border-color:var(--ink); }
+  .chip-btn.type-sunday_am.active{ background:var(--red); border-color:var(--red); }
+  .chip-btn.type-sunday_pm.active{ background:var(--red-deep); border-color:var(--red-deep); }
+  .chip-btn.type-wednesday.active{ background:var(--banner-gray); border-color:var(--banner-gray); color:var(--ink); }
+  .chip-btn.type-special.active{ background:var(--ink); border-color:var(--ink); }
+
+  /* ---------- Collapsible cards ---------- */
+  .sched-table caption{ cursor:pointer; user-select:none; }
+  .sched-table tbody{ display:none; }
+  .sched-table.expanded tbody{ display:table-row-group; }
+  .caption-chevron{
+    display:inline-block; float:right; color:var(--slate); font-size:.7rem;
+    transition:transform .15s ease;
+    margin-top:3px;
+  }
+  .sched-table.expanded .caption-chevron{ transform:rotate(180deg); }
+  .caption-actions{
+    float:right; display:inline-flex; gap:4px; margin-left:8px;
+  }
+  .action-btn{
+    background:none; border:1px solid var(--line); border-radius:4px;
+    font-size:.8rem; line-height:1; padding:4px 6px; cursor:pointer;
+    color:var(--slate);
+  }
+  .action-btn:active{ background:var(--offwhite); }
 </style>
 </head>
 <body>
@@ -109,9 +173,23 @@
   <p>Choir &amp; Service Schedule</p>
 </header>
 
+<div class="sticky-bar">
+  <div class="sticky-bar-inner">
+    <div class="control-row">
+      <span class="control-label">Text Size</span>
+      <button class="chip-btn" id="sizeNormalBtn">Normal</button>
+      <button class="chip-btn" id="sizeLargeBtn">Large</button>
+      <button class="chip-btn" id="sizeLargestBtn">Largest</button>
+      <button class="chip-btn" id="darkModeBtn">☾ Dark Mode</button>
+    </div>
+    <div class="control-row" id="filterChips"></div>
+  </div>
+</div>
+
 <main id="schedule">
   <div class="empty-state">Loading schedule…</div>
 </main>
+<div id="lastUpdated" style="max-width:760px;margin:6px auto 0;padding:0 16px;font-size:.68rem;color:var(--slate);text-align:center;"></div>
 
 <footer class="note">
   This schedule pulls directly from GitHub and checks for updates every 30 seconds. Changes made on the admin page can take a few minutes to show up here due to GitHub's caching.
@@ -119,13 +197,65 @@
 
 <script>
 // ====== GITHUB CONFIG — must match schedule-admin.html ======
-const GH_OWNER  = 'baldguy-s';
-const GH_REPO   = 'bbcff-serv-sched';
+const GH_OWNER  = 'YOUR_GITHUB_USERNAME';
+const GH_REPO   = 'YOUR_REPO_NAME';
 const GH_BRANCH = 'main';
 const GH_PATH   = 'schedule-data.json';
 // ==============================================================
 
 let lastDataString = null;
+let activeFilters = new Set(['sunday_am','sunday_pm','wednesday','special']);
+let expandedIds = new Set();
+
+const FILTER_DEFS = [
+  { type:'sunday_am',  label:'Sunday AM' },
+  { type:'sunday_pm',  label:'Sunday PM' },
+  { type:'wednesday',  label:'Wednesday' },
+  { type:'special',    label:'Special' }
+];
+
+const TEXT_SIZE_KEY = 'schedule_text_size';
+const TEXT_SIZES = { normal: '16px', large: '19px', largest: '23px' };
+const VALID_SIZES = ['normal','large','largest'];
+
+function applyTextSize(size){
+  if (!VALID_SIZES.includes(size)) size = 'normal';
+  document.documentElement.style.fontSize = TEXT_SIZES[size];
+  localStorage.setItem(TEXT_SIZE_KEY, size);
+  ['sizeNormalBtn','sizeLargeBtn','sizeLargestBtn'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  const btnId = { normal:'sizeNormalBtn', large:'sizeLargeBtn', largest:'sizeLargestBtn' }[size];
+  document.getElementById(btnId).classList.add('active');
+}
+
+document.getElementById('sizeNormalBtn').addEventListener('click', () => applyTextSize('normal'));
+document.getElementById('sizeLargeBtn').addEventListener('click', () => applyTextSize('large'));
+document.getElementById('sizeLargestBtn').addEventListener('click', () => applyTextSize('largest'));
+applyTextSize(localStorage.getItem(TEXT_SIZE_KEY) || 'normal');
+
+const DARK_MODE_KEY = 'schedule_dark_mode';
+function applyDarkMode(on){
+  document.body.classList.toggle('dark-mode', on);
+  localStorage.setItem(DARK_MODE_KEY, on ? '1' : '0');
+  document.getElementById('darkModeBtn').textContent = on ? '☀ Light Mode' : '☾ Dark Mode';
+  document.getElementById('darkModeBtn').classList.toggle('active', on);
+}
+document.getElementById('darkModeBtn').addEventListener('click', () => {
+  applyDarkMode(!document.body.classList.contains('dark-mode'));
+});
+applyDarkMode(localStorage.getItem(DARK_MODE_KEY) === '1');
+
+// Toggle a service card's expanded state when its caption is tapped.
+document.getElementById('schedule').addEventListener('click', (ev) => {
+  const caption = ev.target.closest('caption');
+  if (!caption) return;
+  const table = caption.closest('.sched-table');
+  const id = table.getAttribute('data-id');
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  table.classList.toggle('expanded');
+});
 
 function pad(n){ return n.toString().padStart(2,'0'); }
 function toISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
@@ -179,18 +309,38 @@ function labelFor(base, index, total){
   return total > 1 ? `${base} ${index + 1}` : base;
 }
 
-function buildSpecialRows(entry){
+// Defensive accessor: reads the new repeatable-array field, but falls back
+// to wrapping an old single-object field if the data hasn't been migrated yet.
+function getArr(entry, arrayKey, legacyKey){
+  if (Array.isArray(entry[arrayKey])) return entry[arrayKey];
+  if (entry[legacyKey]) return [entry[legacyKey]];
+  return [];
+}
+
+function personRows(entry){
   const rows = [];
-  const songLeaders = entry.songLeaders || [];
-  const singers = entry.singers || [];
-  const speakers = entry.speakers || [];
+  const songLeaders = getArr(entry, 'songLeaders', 'songLeader');
+  const speakers = getArr(entry, 'speakers', 'speaker');
 
   songLeaders.forEach((sl, i) => {
     rows.push(`<tr><td class="label">${labelFor('Song Leader', i, songLeaders.length)}</td><td class="value">${line(val(sl.name))}</td></tr>`);
   });
-  singers.forEach((s, i) => {
-    rows.push(singerRowsHtml(s, labelFor('Singer', i, singers.length)));
-  });
+
+  if (entry.type === 'sunday_pm'){
+    const after = getArr(entry, 'singersAfterPrayer', 'singerAfterPrayer');
+    const before = getArr(entry, 'singersBeforeMessage', 'singerBeforeMessage');
+    after.forEach((s, i) => rows.push(singerRowsHtml(s, labelFor('Singer — After Prayer', i, after.length))));
+    before.forEach((s, i) => rows.push(singerRowsHtml(s, labelFor('Singer — Before Message', i, before.length))));
+  } else {
+    const singers = getArr(entry, 'singers', 'singer');
+    singers.forEach((s, i) => rows.push(singerRowsHtml(s, labelFor(entry.type === 'special' ? 'Singer' : 'Special Singer', i, singers.length))));
+  }
+
+  if (entry.choir){
+    const choirLines = [line(`Slot: ${escapeHtml(entry.choir.slot)}`), line(`Solo: ${ynTag(entry.choir.solo || 'N')}`)];
+    rows.push(`<tr><td class="label">Choir</td><td class="value">${choirLines.join('')}</td></tr>`);
+  }
+
   speakers.forEach((sp, i) => {
     const lines = [line(val(sp.name))];
     if (sp.name) lines.push(line(`Multimedia: ${ynTag(sp.multimedia)}`));
@@ -204,47 +354,132 @@ function buildSpecialRows(entry){
 }
 
 function buildTable(entry){
-  if (entry.type === 'special'){
-    const rows = buildSpecialRows(entry);
-    const captionTitle = entry.specialName && entry.specialName.trim() ? entry.specialName : 'Special Service';
-    return `
-    <table class="sched-table">
-      <caption class="special">${escapeHtml(captionTitle)}
-        <span class="badge">Special Service · ${formatDate(entry.date)}</span>
-      </caption>
-      <tbody>${rows.join('')}</tbody>
-    </table>`;
-  }
-
-  const rows = [];
-  rows.push(`<tr><td class="label">Song Leader</td><td class="value">${line(val(entry.songLeader.name))}</td></tr>`);
-
-  if (entry.type === 'sunday_pm'){
-    rows.push(singerRowsHtml(entry.singerAfterPrayer, 'Singer — After Prayer'));
-    rows.push(singerRowsHtml(entry.singerBeforeMessage, 'Singer — Before Message'));
-  } else {
-    rows.push(singerRowsHtml(entry.singer, 'Special Singer'));
-  }
-
-  if (entry.choir){
-    const choirLines = [line(`Slot: ${escapeHtml(entry.choir.slot)}`), line(`Solo: ${ynTag(entry.choir.solo || 'N')}`)];
-    rows.push(`<tr><td class="label">Choir</td><td class="value">${choirLines.join('')}</td></tr>`);
-  }
-
-  const speakerLines = [line(val(entry.speaker.name)), line(`Multimedia: ${ynTag(entry.speaker.multimedia)}`)];
-  rows.push(`<tr><td class="label">Speaker</td><td class="value">${speakerLines.join('')}</td></tr>`);
-
-  const captionTitle = formatDate(entry.date);
-  const captionSub = '';
+  const rows = personRows(entry);
+  const isSpecial = entry.type === 'special';
+  const captionTitle = isSpecial
+    ? (entry.specialName && entry.specialName.trim() ? entry.specialName : 'Special Service')
+    : formatDate(entry.date);
+  const badgeText = isSpecial
+    ? `Special Service · ${formatDate(entry.date)}`
+    : dayTypeLabel(entry.type);
+  const expanded = expandedIds.has(entry.id) ? ' expanded' : '';
 
   return `
-  <table class="sched-table">
-    <caption class="${entry.type}">${escapeHtml(captionTitle)}
-      <span class="badge">${dayTypeLabel(entry.type)}${captionSub ? ' · ' + captionSub : ''}</span>
+  <table class="sched-table${expanded}" data-id="${entry.id}">
+    <caption class="${entry.type}">
+      <span class="caption-actions">
+        <button type="button" class="action-btn" title="Add to calendar" onclick="event.stopPropagation(); downloadIcs('${entry.id}')">📅</button>
+        <button type="button" class="action-btn" title="Copy link to this service" onclick="event.stopPropagation(); shareLink('${entry.id}', this)">🔗</button>
+      </span>
+      ${escapeHtml(captionTitle)}<span class="caption-chevron">&#9660;</span>
+      <span class="badge">${badgeText}</span>
     </caption>
     <tbody>${rows.join('')}</tbody>
-
   </table>`;
+}
+
+function icsEscape(str){
+  return String(str || '').replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+}
+
+function icsDateStamp(iso){ return iso.replace(/-/g, ''); }
+
+function nextDayIso(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate() + 1);
+  return toISO(dt);
+}
+
+function entrySummaryLine(entry){
+  const parts = [];
+  const sl = getArr(entry, 'songLeaders', 'songLeader').map(p => p.name).filter(Boolean);
+  if (sl.length) parts.push('Song Leader: ' + sl.join(', '));
+  const sp = getArr(entry, 'speakers', 'speaker').map(p => p.name).filter(Boolean);
+  if (sp.length) parts.push('Speaker: ' + sp.join(', '));
+  return parts.length ? parts.join('. ') : 'Details not yet posted.';
+}
+
+function downloadIcs(entryId){
+  const entry = currentEntries.find(e => e.id === entryId);
+  if (!entry) return;
+  const isSpecial = entry.type === 'special';
+  const title = isSpecial
+    ? (entry.specialName && entry.specialName.trim() ? entry.specialName : 'Special Service')
+    : 'Bible Baptist Church — ' + dayTypeLabel(entry.type);
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Bible Baptist Church//Service Schedule//EN',
+    'BEGIN:VEVENT',
+    'UID:' + entry.id + '@bible-baptist-schedule',
+    'DTSTAMP:' + icsDateStamp(todayISO()) + 'T000000Z',
+    'DTSTART;VALUE=DATE:' + icsDateStamp(entry.date),
+    'DTEND;VALUE=DATE:' + icsDateStamp(nextDayIso(entry.date)),
+    'SUMMARY:' + icsEscape(title),
+    'DESCRIPTION:' + icsEscape(entrySummaryLine(entry)),
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+  const uri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+  const link = document.createElement('a');
+  link.href = uri;
+  link.setAttribute('download', 'service-' + entry.date + '.ics');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function shareLink(entryId, btnEl){
+  const url = new URL(location.href);
+  url.search = '';
+  url.searchParams.set('id', entryId);
+  const shareUrl = url.toString();
+  const done = () => {
+    if (!btnEl) return;
+    const original = btnEl.textContent;
+    btnEl.textContent = '✓';
+    setTimeout(() => { btnEl.textContent = original; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(shareUrl).then(done).catch(() => window.prompt('Copy this link:', shareUrl));
+  } else {
+    window.prompt('Copy this link:', shareUrl);
+  }
+}
+
+let didHandleDeepLink = false;
+function handleDeepLink(){
+  if (didHandleDeepLink) return;
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  if (!id) { didHandleDeepLink = true; return; }
+  const table = document.querySelector('.sched-table[data-id="' + id + '"]');
+  if (table){
+    expandedIds.add(id);
+    table.classList.add('expanded');
+    table.scrollIntoView({ behavior:'smooth', block:'center' });
+    didHandleDeepLink = true;
+  }
+  // If not found yet (data still loading), leave didHandleDeepLink false to retry on next render.
+}
+
+let lastCommitCheckString = null;
+async function fetchLastUpdated(dataString){
+  if (dataString === lastCommitCheckString) return;
+  lastCommitCheckString = dataString;
+  try{
+    const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?path=${encodeURIComponent(GH_PATH)}&page=1&per_page=1`;
+    const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return;
+    const dateStr = data[0].commit && data[0].commit.committer && data[0].commit.committer.date;
+    if (!dateStr) return;
+    const dt = new Date(dateStr);
+    const formatted = (dt.getMonth() + 1) + '/' + dt.getDate() + '/' + String(dt.getFullYear()).slice(-2);
+    document.getElementById('lastUpdated').textContent = 'Last updated ' + formatted;
+  } catch(e){ /* non-critical, ignore */ }
 }
 
 async function loadAndRender(){
@@ -261,20 +496,43 @@ async function loadAndRender(){
     console.error(e);
   }
   const dataString = JSON.stringify(entries);
+  fetchLastUpdated(dataString);
   if (dataString === lastDataString) return; // no changes, skip re-render
   lastDataString = dataString;
   render(entries);
 }
 
+function renderFilterChips(){
+  const wrap = document.getElementById('filterChips');
+  wrap.innerHTML = '<span class="control-label">Service</span>';
+  FILTER_DEFS.forEach(def => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip-btn type-' + def.type + (activeFilters.has(def.type) ? ' active' : '');
+    chip.textContent = def.label;
+    chip.addEventListener('click', () => {
+      if (activeFilters.has(def.type)) activeFilters.delete(def.type);
+      else activeFilters.add(def.type);
+      lastDataString = null; // force re-render even though the data hasn't changed
+      render(currentEntries);
+    });
+    wrap.appendChild(chip);
+  });
+}
+
+let currentEntries = [];
+
 function render(entries){
+  currentEntries = entries;
+  renderFilterChips();
   const main = document.getElementById('schedule');
   const today = todayISO();
   const upcoming = entries
-    .filter(e => e.date >= today)
+    .filter(e => e.date >= today && activeFilters.has(e.type))
     .sort((a,b) => (a.order||0) - (b.order||0));
 
   if (upcoming.length === 0){
-    main.innerHTML = '<div class="empty-state">No upcoming services on the schedule.</div>';
+    main.innerHTML = '<div class="empty-state">No upcoming services match the selected filters.</div>';
     return;
   }
 
@@ -289,6 +547,7 @@ function render(entries){
     html += buildTable(entry);
   });
   main.innerHTML = html;
+  handleDeepLink();
 }
 
 loadAndRender();

@@ -282,8 +282,53 @@
     font-size:.72rem;color:var(--slate);line-height:1.6;text-align:center;
   }
 
+  /* ---------- Sticky filter bar ---------- */
+  .filter-bar{
+    position:sticky; top:0; z-index:20;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    box-shadow:0 2px 6px rgba(0,0,0,0.04);
+    padding:10px 16px;
+  }
+  .filter-bar-inner{
+    max-width:640px; margin:0 auto;
+    display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  }
+  .filter-chip{
+    background:white; border:1px solid var(--line); color:var(--slate);
+    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.74rem;
+    padding:6px 11px; border-radius:20px; cursor:pointer; white-space:nowrap;
+  }
+  .filter-chip.active{ background:var(--ink); color:white; border-color:var(--ink); }
+  .filter-chip.type-sunday_am.active{ background:var(--red); border-color:var(--red); }
+  .filter-chip.type-sunday_pm.active{ background:var(--red-deep); border-color:var(--red-deep); }
+  .filter-chip.type-wednesday.active{ background:var(--banner-gray); border-color:var(--banner-gray); color:var(--ink); }
+  .filter-chip.type-special.active{ background:var(--ink); border-color:var(--ink); }
+  .control-label{
+    font-size:.65rem; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--slate); font-weight:600; margin-right:2px;
+  }
+
+  /* ---------- Collapsible cards ---------- */
+  .card-top{ cursor:pointer; }
+  .chevron{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:50%;
+    color:var(--slate); font-size:.7rem; flex-shrink:0;
+    transition:transform .15s ease;
+  }
+  .service-card.expanded .chevron{ transform:rotate(180deg); }
+  .card-details{ display:none; }
+  .service-card.expanded .card-details{ display:block; }
+
   @media (min-width:560px){
     .card-date{ font-size:1.25rem; }
+  }
+
+  #printArea{ display:none; }
+  @media print {
+    body > *:not(#printArea){ display:none !important; }
+    #printArea{ display:block !important; font-family:'Source Sans 3', sans-serif; color:#000; }
   }
 </style>
 </head>
@@ -295,14 +340,23 @@
   <p>Editable roster · syncs to the public schedule automatically</p>
 </header>
 
+<datalist id="nameDirectoryList"></datalist>
+
 <div class="toolbar">
   <div class="toolbar-row">
     <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Synced</span></div>
     <button class="add-btn" id="openSpecialBtn">+ Add Special Service</button>
   </div>
-  <div style="text-align:right;">
+  <div class="toolbar-row" style="justify-content:flex-end; gap:14px;">
+    <button id="printWeekBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Print This Week</button>
+    <button id="printMonthBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Print This Month</button>
+    <button id="managePeopleBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Manage People</button>
     <button id="changeTokenBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Change GitHub token</button>
   </div>
+</div>
+
+<div class="filter-bar" id="filterBar">
+  <div class="filter-bar-inner" id="filterChips"></div>
 </div>
 
 <div class="special-form" id="tokenForm">
@@ -314,6 +368,18 @@
     <button class="cancel" id="tokenCancelBtn">Cancel</button>
     <button class="save" id="tokenSaveBtn">Save Token</button>
   </div>
+</div>
+
+<div class="special-form" id="managePeopleForm">
+  <div>
+    <label>Add a name to the directory</label>
+    <input type="text" id="newPersonInput" placeholder="e.g. David Thompson">
+  </div>
+  <div class="btn-row">
+    <button class="cancel" id="managePeopleCloseBtn">Close</button>
+    <button class="save" id="addPersonBtn">Add Name</button>
+  </div>
+  <div id="managePeopleList" style="margin-top:6px;"></div>
 </div>
 
 <div class="special-form" id="specialForm">
@@ -331,6 +397,7 @@
   </div>
 </div>
 
+
 <main id="schedule">
   <div class="empty-state">Loading schedule…</div>
 </main>
@@ -341,17 +408,29 @@
 
 <script>
 // ====== GITHUB CONFIG — fill these in for your repo ======
-const GH_OWNER  = 'baldguy-s';   // e.g. 'sblackwell'
-const GH_REPO   = 'bbcff-serv-sched';         // e.g. 'choir-schedule'
+const GH_OWNER  = 'YOUR_GITHUB_USERNAME';   // e.g. 'sblackwell'
+const GH_REPO   = 'YOUR_REPO_NAME';         // e.g. 'choir-schedule'
 const GH_BRANCH = 'main';                   // your default branch
 const GH_PATH   = 'schedule-data.json';     // where the data file lives in the repo
+const GH_PEOPLE_PATH = 'schedule-people.json'; // stores manually-added names for the directory
 // ===========================================================
 
 const TOKEN_KEY = 'gh_pat_choir_schedule';
-const MUSIC_OPTIONS = ['Acapella','CD','Other Instrument','PC','Piano','Unknown'];
+const MUSIC_OPTIONS = ['Acapella','CD','Other Instrument','PC','Piano','USB','Unknown'];
 let entries = [];
+let manualPeople = [];
 let saveTimer = null;
 let currentSha = null;
+let peopleSha = null;
+let expandedIds = new Set();
+let activeFilters = new Set(['sunday_am','sunday_pm','wednesday','special']);
+
+const FILTER_DEFS = [
+  { type:'sunday_am',  label:'Sunday AM' },
+  { type:'sunday_pm',  label:'Sunday PM' },
+  { type:'wednesday',  label:'Wednesday' },
+  { type:'special',    label:'Special' }
+];
 
 function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
 function setToken(t){ localStorage.setItem(TOKEN_KEY, t); }
@@ -359,8 +438,8 @@ function setToken(t){ localStorage.setItem(TOKEN_KEY, t); }
 function b64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
 function b64DecodeUtf8(str){ return decodeURIComponent(escape(atob(str.replace(/\n/g,'')))); }
 
-async function ghGetFile(){
-  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(GH_PATH)}?ref=${GH_BRANCH}&t=${Date.now()}`;
+async function ghGetFile(path){
+  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(path)}?ref=${GH_BRANCH}&t=${Date.now()}`;
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${getToken()}`,
@@ -373,10 +452,10 @@ async function ghGetFile(){
   return { content: b64DecodeUtf8(data.content), sha: data.sha };
 }
 
-async function ghPutFile(contentStr, sha){
-  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(GH_PATH)}`;
+async function ghPutFile(path, contentStr, sha, message){
+  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(path)}`;
   const body = {
-    message: 'Update choir schedule',
+    message: message || 'Update choir schedule',
     content: b64EncodeUtf8(contentStr),
     branch: GH_BRANCH
   };
@@ -410,37 +489,33 @@ function createEntry(type, dateISO, extra){
   const base = { id: uid(), date: dateISO, type };
   if (extra) Object.assign(base, extra);
 
-  if (type === 'special'){
-    base.songLeaders = [makeSongLeader()];
-    base.speakers = [makeSpeaker()];
-    base.singers = [makeSinger()];
-    return base;
-  }
+  base.songLeaders = [makeSongLeader()];
+  base.speakers = [makeSpeaker()];
 
-  base.songLeader = { name:'' };
-  base.speaker = { name:'', multimedia:'N' };
   if (type === 'sunday_am' || type === 'sunday_pm'){
     base.choir = { slot:'1', solo:'N' };
   }
   if (type === 'sunday_pm'){
-    base.singerAfterPrayer = { name:'', music:'Unknown', soundCheck:'N' };
-    base.singerBeforeMessage = { name:'', music:'Unknown', soundCheck:'N' };
+    base.singersAfterPrayer = [makeSinger()];
+    base.singersBeforeMessage = [makeSinger()];
   } else {
-    base.singer = { name:'', music:'Unknown', soundCheck:'N' };
+    base.singers = [makeSinger()];
   }
   return base;
 }
 
-// Migrates any special entries saved under the old fixed-field format
-// (single songLeader/speaker/singer) into the new repeatable-array format.
+// Migrates entries saved under the old fixed-field format (single
+// songLeader/speaker/singer, or singerAfterPrayer/singerBeforeMessage)
+// into the new repeatable-array format used by every service type.
 // Also backfills the Choir "Solo" field for entries saved before it existed.
 function normalizeEntry(e){
   let changed = false;
+
   if (e.choir && e.choir.solo === undefined){
     e.choir.solo = 'N';
     changed = true;
   }
-  if (e.type !== 'special') return changed;
+
   if (!Array.isArray(e.songLeaders)){
     e.songLeaders = e.songLeader && e.songLeader.name !== undefined
       ? [{ id: uid(), name: e.songLeader.name || '' }]
@@ -448,6 +523,7 @@ function normalizeEntry(e){
     delete e.songLeader;
     changed = true;
   }
+
   if (!Array.isArray(e.speakers)){
     e.speakers = e.speaker
       ? [{ id: uid(), name: e.speaker.name || '', multimedia: e.speaker.multimedia || 'N' }]
@@ -455,13 +531,30 @@ function normalizeEntry(e){
     delete e.speaker;
     changed = true;
   }
-  if (!Array.isArray(e.singers)){
+
+  if (e.type === 'sunday_pm'){
+    if (!Array.isArray(e.singersAfterPrayer)){
+      e.singersAfterPrayer = e.singerAfterPrayer
+        ? [{ id: uid(), name: e.singerAfterPrayer.name || '', music: e.singerAfterPrayer.music || 'Unknown', soundCheck: e.singerAfterPrayer.soundCheck || 'N' }]
+        : [makeSinger()];
+      delete e.singerAfterPrayer;
+      changed = true;
+    }
+    if (!Array.isArray(e.singersBeforeMessage)){
+      e.singersBeforeMessage = e.singerBeforeMessage
+        ? [{ id: uid(), name: e.singerBeforeMessage.name || '', music: e.singerBeforeMessage.music || 'Unknown', soundCheck: e.singerBeforeMessage.soundCheck || 'N' }]
+        : [makeSinger()];
+      delete e.singerBeforeMessage;
+      changed = true;
+    }
+  } else if (!Array.isArray(e.singers)){
     e.singers = e.singer
       ? [{ id: uid(), name: e.singer.name || '', music: e.singer.music || 'Unknown', soundCheck: e.singer.soundCheck || 'N' }]
       : [makeSinger()];
     delete e.singer;
     changed = true;
   }
+
   return changed;
 }
 
@@ -516,7 +609,7 @@ function setStatus(mode, extra){
 async function loadData(){
   setStatus('saving');
   try{
-    const { content, sha } = await ghGetFile();
+    const { content, sha } = await ghGetFile(GH_PATH);
     currentSha = sha;
     entries = content ? JSON.parse(content) : null;
   } catch(e){
@@ -544,6 +637,16 @@ async function loadData(){
     if (migrated) await persist();
     else setStatus('synced');
   }
+
+  try{
+    const peopleRes = await ghGetFile(GH_PEOPLE_PATH);
+    peopleSha = peopleRes.sha;
+    manualPeople = peopleRes.content ? JSON.parse(peopleRes.content) : [];
+  } catch(e){
+    console.error(e);
+    manualPeople = [];
+  }
+
   render();
 }
 
@@ -558,15 +661,30 @@ async function persist(){
     // Re-check the latest sha first so we don't clobber a change made from another device.
     let sha = currentSha;
     try{
-      const latest = await ghGetFile();
+      const latest = await ghGetFile(GH_PATH);
       sha = latest.sha;
     } catch(inner){ /* fall back to last-known sha */ }
-    const result = await ghPutFile(JSON.stringify(entries), sha);
+    const result = await ghPutFile(GH_PATH, JSON.stringify(entries), sha);
     currentSha = result && result.content ? result.content.sha : currentSha;
     setStatus('synced');
   } catch(e){
     console.error(e);
     setStatus('error', e.message);
+  }
+}
+
+async function persistPeople(){
+  try{
+    let sha = peopleSha;
+    try{
+      const latest = await ghGetFile(GH_PEOPLE_PATH);
+      sha = latest.sha;
+    } catch(inner){ /* fall back to last-known sha */ }
+    const result = await ghPutFile(GH_PEOPLE_PATH, JSON.stringify(manualPeople), sha, 'Update volunteer directory');
+    peopleSha = result && result.content ? result.content.sha : peopleSha;
+  } catch(e){
+    console.error(e);
+    alert('Could not save the directory change: ' + e.message);
   }
 }
 
@@ -607,16 +725,20 @@ function removeArrayItem(entryId, arrayName, itemId){
   render();
 }
 
-function moveEntry(id, direction){
+function getVisibleEntries(){
   const today = todayISO();
-  const upcoming = entries
-    .filter(e => e.date >= today)
+  return entries
+    .filter(e => e.date >= today && activeFilters.has(e.type))
     .sort((a,b) => (a.order||0) - (b.order||0));
-  const idx = upcoming.findIndex(e => e.id === id);
+}
+
+function moveEntry(id, direction){
+  const visible = getVisibleEntries();
+  const idx = visible.findIndex(e => e.id === id);
   if (idx === -1) return;
   const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-  if (swapIdx < 0 || swapIdx >= upcoming.length) return;
-  const a = upcoming[idx], b = upcoming[swapIdx];
+  if (swapIdx < 0 || swapIdx >= visible.length) return;
+  const a = visible[idx], b = visible[swapIdx];
   const tmp = a.order;
   a.order = b.order;
   b.order = tmp;
@@ -690,32 +812,71 @@ function nameInput(id, path, value, placeholder){
   inp.className = 'name-input';
   inp.value = value || '';
   inp.placeholder = placeholder || 'Name';
+  inp.setAttribute('list', 'nameDirectoryList');
+  inp.setAttribute('autocomplete', 'off');
   inp.addEventListener('input', () => setField(id, path, inp.value));
   return inp;
 }
 
-function buildSingerFields(id, basePath, singer, container){
-  const row = document.createElement('div');
-  row.className = 'field-row';
-  row.appendChild(nameInput(id, `${basePath}.name`, singer.name, 'Name'));
-  row.appendChild(musicSelect(id, `${basePath}.music`, singer.music));
-  const scWrap = document.createElement('div');
-  scWrap.style.display = 'flex';
-  scWrap.style.alignItems = 'center';
-  scWrap.style.gap = '5px';
-  const scLabel = document.createElement('span');
-  scLabel.style.fontSize = '.7rem';
-  scLabel.style.color = 'var(--slate)';
-  scLabel.textContent = 'Sound Check';
-  scWrap.appendChild(scLabel);
-  scWrap.appendChild(segControl(id, `${basePath}.soundCheck`, [{label:'Y',value:'Y'},{label:'N',value:'N'}], singer.soundCheck, 'yesno'));
-  row.appendChild(scWrap);
-  container.appendChild(row);
+// Builds the full list of known names: everyone already typed into the
+// schedule, plus anyone manually added via "Manage People".
+function getNameDirectory(){
+  const names = new Set();
+  entries.forEach(e => {
+    (e.songLeaders || []).forEach(p => p.name && names.add(p.name.trim()));
+    (e.speakers || []).forEach(p => p.name && names.add(p.name.trim()));
+    (e.singers || []).forEach(p => p.name && names.add(p.name.trim()));
+    (e.singersAfterPrayer || []).forEach(p => p.name && names.add(p.name.trim()));
+    (e.singersBeforeMessage || []).forEach(p => p.name && names.add(p.name.trim()));
+  });
+  manualPeople.forEach(n => n && names.add(n.trim()));
+  names.delete('');
+  return Array.from(names).sort((a,b) => a.localeCompare(b));
+}
+
+function refreshDatalist(){
+  const list = document.getElementById('nameDirectoryList');
+  if (!list) return;
+  list.innerHTML = '';
+  getNameDirectory().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    list.appendChild(opt);
+  });
+}
+
+function renderManagePeople(){
+  const wrap = document.getElementById('managePeopleList');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (manualPeople.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'empty-val';
+    empty.style.fontSize = '.8rem';
+    empty.textContent = 'No manually-added names yet.';
+    wrap.appendChild(empty);
+    return;
+  }
+  manualPeople.slice().sort((a,b) => a.localeCompare(b)).forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'field-row repeat-item';
+    const label = document.createElement('span');
+    label.style.flex = '1';
+    label.textContent = name;
+    row.appendChild(label);
+    row.appendChild(rowRemoveButton(() => {
+      manualPeople = manualPeople.filter(n => n !== name);
+      persistPeople();
+      refreshDatalist();
+      renderManagePeople();
+    }));
+    wrap.appendChild(row);
+  });
 }
 
 function buildCard(entry, isFirst, isLast){
   const card = document.createElement('div');
-  card.className = 'service-card';
+  card.className = 'service-card' + (expandedIds.has(entry.id) ? ' expanded' : '');
 
   const ribbon = document.createElement('div');
   ribbon.className = 'ribbon ' + entry.type;
@@ -726,6 +887,13 @@ function buildCard(entry, isFirst, isLast){
 
   const top = document.createElement('div');
   top.className = 'card-top';
+  top.addEventListener('click', (ev) => {
+    // Don't toggle when interacting with buttons/inputs inside the header
+    if (ev.target.closest('button') || ev.target.closest('input')) return;
+    if (expandedIds.has(entry.id)) expandedIds.delete(entry.id);
+    else expandedIds.add(entry.id);
+    render();
+  });
 
   const left = document.createElement('div');
   left.style.flex = '1';
@@ -753,10 +921,10 @@ function buildCard(entry, isFirst, isLast){
 
   top.appendChild(left);
 
-  if (entry.type === 'special'){
-    const controls = document.createElement('div');
-    controls.className = 'card-controls';
+  const controls = document.createElement('div');
+  controls.className = 'card-controls';
 
+  if (entry.type === 'special'){
     const upBtn = document.createElement('button');
     upBtn.className = 'move-btn';
     upBtn.innerHTML = '&#9650;';
@@ -780,39 +948,27 @@ function buildCard(entry, isFirst, isLast){
     del.addEventListener('click', () => {
       if (confirm('Remove this special service from the schedule?')){
         entries = entries.filter(e => e.id !== entry.id);
+        expandedIds.delete(entry.id);
         debouncedSave();
         render();
       }
     });
     controls.appendChild(del);
-
-    top.appendChild(controls);
   }
 
+  const chevron = document.createElement('span');
+  chevron.className = 'chevron';
+  chevron.innerHTML = '&#9660;';
+  controls.appendChild(chevron);
+
+  top.appendChild(controls);
   body.appendChild(top);
 
-  if (entry.type === 'special'){
-    body.appendChild(buildRepeatableSongLeaders(entry));
-    body.appendChild(buildRepeatableSingers(entry));
-    body.appendChild(buildRepeatableSpeakers(entry));
-    card.appendChild(body);
-    return card;
-  }
+  const details = document.createElement('div');
+  details.className = 'card-details';
 
-  // Song Leader
-  const slSection = document.createElement('div');
-  slSection.className = 'field-section';
-  const slLabel = document.createElement('div');
-  slLabel.className = 'section-label';
-  slLabel.textContent = 'Song Leader';
-  slSection.appendChild(slLabel);
-  const slRow = document.createElement('div');
-  slRow.className = 'field-row';
-  slRow.appendChild(nameInput(entry.id, 'songLeader.name', entry.songLeader.name, 'Song leader name'));
-  slSection.appendChild(slRow);
-  body.appendChild(slSection);
+  details.appendChild(buildRepeatableSongLeaders(entry));
 
-  // Choir (Sunday AM / PM only)
   if (entry.choir){
     const choirSection = document.createElement('div');
     choirSection.className = 'field-section';
@@ -848,58 +1004,19 @@ function buildCard(entry, isFirst, isLast){
     cRow.appendChild(soloWrap);
 
     choirSection.appendChild(cRow);
-    body.appendChild(choirSection);
+    details.appendChild(choirSection);
   }
-
-  // Singer(s)
-  const singerSection = document.createElement('div');
-  singerSection.className = 'field-section';
-  const sLabel = document.createElement('div');
-  sLabel.className = 'section-label';
-  sLabel.textContent = entry.type === 'sunday_pm' ? 'Special Singers' : 'Special Singer';
-  singerSection.appendChild(sLabel);
 
   if (entry.type === 'sunday_pm'){
-    const l1 = document.createElement('div');
-    l1.className = 'subgroup-label';
-    l1.textContent = 'After Prayer';
-    singerSection.appendChild(l1);
-    buildSingerFields(entry.id, 'singerAfterPrayer', entry.singerAfterPrayer, singerSection);
-
-    const l2 = document.createElement('div');
-    l2.className = 'subgroup-label';
-    l2.textContent = 'Before Message';
-    singerSection.appendChild(l2);
-    buildSingerFields(entry.id, 'singerBeforeMessage', entry.singerBeforeMessage, singerSection);
+    details.appendChild(buildRepeatableSingers(entry, 'singersAfterPrayer', 'Singer(s) — After Prayer'));
+    details.appendChild(buildRepeatableSingers(entry, 'singersBeforeMessage', 'Singer(s) — Before Message'));
   } else {
-    buildSingerFields(entry.id, 'singer', entry.singer, singerSection);
+    details.appendChild(buildRepeatableSingers(entry, 'singers', 'Singer(s)'));
   }
-  body.appendChild(singerSection);
 
-  // Speaker
-  const spSection = document.createElement('div');
-  spSection.className = 'field-section';
-  const spLabel = document.createElement('div');
-  spLabel.className = 'section-label';
-  spLabel.textContent = 'Speaker';
-  spSection.appendChild(spLabel);
-  const spRow = document.createElement('div');
-  spRow.className = 'field-row';
-  spRow.appendChild(nameInput(entry.id, 'speaker.name', entry.speaker.name, 'Speaker name'));
-  const mmWrap = document.createElement('div');
-  mmWrap.style.display = 'flex';
-  mmWrap.style.alignItems = 'center';
-  mmWrap.style.gap = '5px';
-  const mmLabel = document.createElement('span');
-  mmLabel.style.fontSize = '.7rem';
-  mmLabel.style.color = 'var(--slate)';
-  mmLabel.textContent = 'Multimedia';
-  mmWrap.appendChild(mmLabel);
-  mmWrap.appendChild(segControl(entry.id, 'speaker.multimedia', [{label:'Y',value:'Y'},{label:'N',value:'N'}], entry.speaker.multimedia, 'yesno'));
-  spRow.appendChild(mmWrap);
-  spSection.appendChild(spRow);
-  body.appendChild(spSection);
+  details.appendChild(buildRepeatableSpeakers(entry));
 
+  body.appendChild(details);
   card.appendChild(body);
   return card;
 }
@@ -984,19 +1101,19 @@ function buildRepeatableSpeakers(entry){
   return section;
 }
 
-function buildRepeatableSingers(entry){
+function buildRepeatableSingers(entry, arrayName, label){
   const section = document.createElement('div');
   section.className = 'field-section';
-  const label = document.createElement('div');
-  label.className = 'section-label';
-  label.textContent = 'Singer(s)';
-  section.appendChild(label);
+  const labelEl = document.createElement('div');
+  labelEl.className = 'section-label';
+  labelEl.textContent = label;
+  section.appendChild(labelEl);
 
-  entry.singers.forEach(item => {
+  entry[arrayName].forEach(item => {
     const row = document.createElement('div');
     row.className = 'field-row repeat-item';
     row.appendChild(nameInput(null, null, item.name, 'Name'));
-    row.lastChild.addEventListener('input', (ev) => setArrayItemField(entry.id, 'singers', item.id, 'name', ev.target.value));
+    row.lastChild.addEventListener('input', (ev) => setArrayItemField(entry.id, arrayName, item.id, 'name', ev.target.value));
 
     const sel = document.createElement('select');
     sel.className = 'music-select';
@@ -1006,7 +1123,7 @@ function buildRepeatableSingers(entry){
       if (opt === item.music) o.selected = true;
       sel.appendChild(o);
     });
-    sel.addEventListener('change', () => setArrayItemField(entry.id, 'singers', item.id, 'music', sel.value));
+    sel.addEventListener('change', () => setArrayItemField(entry.id, arrayName, item.id, 'music', sel.value));
     row.appendChild(sel);
 
     const scWrap = document.createElement('div');
@@ -1022,7 +1139,7 @@ function buildRepeatableSingers(entry){
     Array.from(seg.children).forEach((btn, i) => {
       btn.addEventListener('click', () => {
         const value = i === 0 ? 'Y' : 'N';
-        setArrayItemField(entry.id, 'singers', item.id, 'soundCheck', value);
+        setArrayItemField(entry.id, arrayName, item.id, 'soundCheck', value);
         Array.from(seg.children).forEach(c => c.classList.remove('active','ss-yes','ss-no'));
         btn.classList.add('active', value === 'Y' ? 'ss-yes' : 'ss-no');
       });
@@ -1030,25 +1147,41 @@ function buildRepeatableSingers(entry){
     scWrap.appendChild(seg);
     row.appendChild(scWrap);
 
-    row.appendChild(rowRemoveButton(() => removeArrayItem(entry.id, 'singers', item.id)));
+    row.appendChild(rowRemoveButton(() => removeArrayItem(entry.id, arrayName, item.id)));
     section.appendChild(row);
   });
-  section.appendChild(addRowButton('Add Singer', () => addArrayItem(entry.id, 'singers', makeSinger)));
+  section.appendChild(addRowButton('Add Singer', () => addArrayItem(entry.id, arrayName, makeSinger)));
   return section;
 }
 
+function renderFilterChips(){
+  const wrap = document.getElementById('filterChips');
+  wrap.innerHTML = '<span class="control-label">Service</span>';
+  FILTER_DEFS.forEach(def => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filter-chip type-' + def.type + (activeFilters.has(def.type) ? ' active' : '');
+    chip.textContent = def.label;
+    chip.addEventListener('click', () => {
+      if (activeFilters.has(def.type)) activeFilters.delete(def.type);
+      else activeFilters.add(def.type);
+      render();
+    });
+    wrap.appendChild(chip);
+  });
+}
+
 function render(){
+  renderFilterChips();
+  refreshDatalist();
   const main = document.getElementById('schedule');
   main.innerHTML = '';
-  const today = todayISO();
-  const upcoming = entries
-    .filter(e => e.date >= today)
-    .sort((a,b) => (a.order||0) - (b.order||0));
+  const upcoming = getVisibleEntries();
 
   if (upcoming.length === 0){
     const empty = document.createElement('div');
     empty.className = 'empty-state';
-    empty.textContent = 'No upcoming services on the schedule.';
+    empty.textContent = 'No upcoming services match the selected filters.';
     main.appendChild(empty);
     return;
   }
@@ -1108,6 +1241,90 @@ document.getElementById('tokenSaveBtn').addEventListener('click', () => {
   tokenForm.classList.remove('open');
   loadData();
 });
+
+// Manage People wiring
+const managePeopleForm = document.getElementById('managePeopleForm');
+document.getElementById('managePeopleBtn').addEventListener('click', () => {
+  document.getElementById('newPersonInput').value = '';
+  renderManagePeople();
+  managePeopleForm.classList.add('open');
+});
+document.getElementById('managePeopleCloseBtn').addEventListener('click', () => {
+  managePeopleForm.classList.remove('open');
+});
+document.getElementById('addPersonBtn').addEventListener('click', () => {
+  const input = document.getElementById('newPersonInput');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!manualPeople.some(n => n.toLowerCase() === val.toLowerCase())){
+    manualPeople.push(val);
+    persistPeople();
+    refreshDatalist();
+  }
+  input.value = '';
+  renderManagePeople();
+});
+
+// ---------- Print view ----------
+function icsEscape(str){
+  return String(str || '').replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+}
+
+function printSummaryLine(entry){
+  const parts = [];
+  const sl = (entry.songLeaders || []).map(p => p.name).filter(Boolean);
+  if (sl.length) parts.push('Song Leader: ' + sl.join(', '));
+  const sp = (entry.speakers || []).map(p => p.name).filter(Boolean);
+  if (sp.length) parts.push('Speaker: ' + sp.join(', '));
+  if (entry.type === 'sunday_pm'){
+    const a = (entry.singersAfterPrayer || []).map(p => p.name).filter(Boolean);
+    const b = (entry.singersBeforeMessage || []).map(p => p.name).filter(Boolean);
+    if (a.length) parts.push('Singer (After Prayer): ' + a.join(', '));
+    if (b.length) parts.push('Singer (Before Message): ' + b.join(', '));
+  } else {
+    const s = (entry.singers || []).map(p => p.name).filter(Boolean);
+    if (s.length) parts.push('Singer: ' + s.join(', '));
+  }
+  if (entry.choir) parts.push('Choir Slot ' + entry.choir.slot + (entry.choir.solo === 'Y' ? ' (Solo)' : ''));
+  return parts.length ? parts.join(' — ') : 'Not yet assigned';
+}
+
+function openPrintView(days){
+  const start = todayISO();
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + days);
+  const end = toISO(endDate);
+  const items = entries
+    .filter(e => e.date >= start && e.date < end)
+    .sort((a,b) => (a.order||0) - (b.order||0));
+
+  let html = `<h1 style="font-family:'Playfair Display',serif;">Bible Baptist Church — Schedule</h1>`;
+  html += `<p style="color:#666;">${formatDate(start)} through ${formatDate(end)}</p>`;
+  if (items.length === 0){
+    html += '<p>No services scheduled in this range.</p>';
+  }
+  items.forEach(entry => {
+    const title = entry.type === 'special'
+      ? (entry.specialName && entry.specialName.trim() ? entry.specialName : 'Special Service')
+      : dayTypeLabel(entry.type);
+    html += `<div style="margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #ccc;">`;
+    html += `<div style="font-weight:700;">${formatDate(entry.date)} — ${title}</div>`;
+    html += `<div style="font-size:.9rem; color:#333;">${printSummaryLine(entry)}</div>`;
+    html += `</div>`;
+  });
+
+  let area = document.getElementById('printArea');
+  if (!area){
+    area = document.createElement('div');
+    area.id = 'printArea';
+    document.body.appendChild(area);
+  }
+  area.innerHTML = html;
+  window.print();
+}
+
+document.getElementById('printWeekBtn').addEventListener('click', () => openPrintView(7));
+document.getElementById('printMonthBtn').addEventListener('click', () => openPrintView(30));
 
 function init(){
   if (!getToken()){
