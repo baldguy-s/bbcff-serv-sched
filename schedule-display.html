@@ -163,6 +163,7 @@
     color:var(--slate);
   }
   .action-btn:active{ background:var(--offwhite); }
+  .action-btn.hidden-btn{ display:none; }
 </style>
 </head>
 <body>
@@ -196,11 +197,16 @@
 
 <script>
 // ====== GITHUB CONFIG — must match schedule-admin.html ======
-const GH_OWNER  = 'baldguy-s';
-const GH_REPO   = 'bbcff-serv-sched';
+const GH_OWNER  = 'owner';
+const GH_REPO   = 'repo';
 const GH_BRANCH = 'main';
 const GH_PATH   = 'schedule-data.json';
 // ==============================================================
+
+const GH_PLACEHOLDERS = ['owner', 'repo', 'YOUR_GITHUB_USERNAME', 'YOUR_REPO_NAME', ''];
+function isGhConfigured(){
+  return !GH_PLACEHOLDERS.includes(GH_OWNER) && !GH_PLACEHOLDERS.includes(GH_REPO);
+}
 
 let lastDataString = null;
 let activeFilters = new Set(['sunday_am','sunday_pm','wednesday','special']);
@@ -367,7 +373,7 @@ function buildTable(entry){
   <table class="sched-table${expanded}" data-id="${entry.id}">
     <caption class="${entry.type}">
       <span class="caption-actions">
-        <button type="button" class="action-btn" title="Add to calendar" onclick="event.stopPropagation(); downloadIcs('${entry.id}')">📅</button>
+        <button type="button" class="action-btn hidden-btn" title="Add to calendar" onclick="event.stopPropagation(); downloadIcs('${entry.id}')">📅</button>
         <button type="button" class="action-btn" title="Copy link to this service" onclick="event.stopPropagation(); shareLink('${entry.id}', this)">🔗</button>
       </span>
       ${escapeHtml(captionTitle)}<span class="caption-chevron">&#9660;</span>
@@ -482,6 +488,11 @@ async function fetchLastUpdated(dataString){
 }
 
 async function loadAndRender(){
+  if (!isGhConfigured()){
+    document.getElementById('schedule').innerHTML =
+      '<div class="empty-state">⚠️ Config not set.<br>This page has not been connected to a GitHub repo yet. Edit GH_OWNER and GH_REPO near the top of the script.</div>';
+    return;
+  }
   let entries = [];
   try{
     const url = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_PATH}?t=${Date.now()}`;

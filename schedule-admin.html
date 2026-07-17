@@ -408,12 +408,17 @@
 
 <script>
 // ====== GITHUB CONFIG — fill these in for your repo ======
-const GH_OWNER  = 'baldguy-s';   // e.g. 'sblackwell'
-const GH_REPO   = 'bbcff-serv-sched';         // e.g. 'choir-schedule'
+const GH_OWNER  = 'owner';   // e.g. 'sblackwell'
+const GH_REPO   = 'repo';         // e.g. 'choir-schedule'
 const GH_BRANCH = 'main';                   // your default branch
 const GH_PATH   = 'schedule-data.json';     // where the data file lives in the repo
 const GH_PEOPLE_PATH = 'schedule-people.json'; // stores manually-added names for the directory
 // ===========================================================
+
+const GH_PLACEHOLDERS = ['owner', 'repo', 'YOUR_GITHUB_USERNAME', 'YOUR_REPO_NAME', ''];
+function isGhConfigured(){
+  return !GH_PLACEHOLDERS.includes(GH_OWNER) && !GH_PLACEHOLDERS.includes(GH_REPO);
+}
 
 const TOKEN_KEY = 'gh_pat_choir_schedule';
 const MUSIC_OPTIONS = ['Acapella','CD','Other Instrument','PC','Piano','USB','Unknown'];
@@ -607,6 +612,12 @@ function setStatus(mode, extra){
 }
 
 async function loadData(){
+  if (!isGhConfigured()){
+    document.getElementById('schedule').innerHTML =
+      '<div class="empty-state">⚠️ Config not set.<br>This page has not been connected to a GitHub repo yet. Edit GH_OWNER and GH_REPO near the top of the script, then reload.</div>';
+    setStatus('error', 'config not set');
+    return;
+  }
   setStatus('saving');
   try{
     const { content, sha } = await ghGetFile(GH_PATH);
@@ -1327,6 +1338,12 @@ document.getElementById('printWeekBtn').addEventListener('click', () => openPrin
 document.getElementById('printMonthBtn').addEventListener('click', () => openPrintView(30));
 
 function init(){
+  if (!isGhConfigured()){
+    document.getElementById('schedule').innerHTML =
+      '<div class="empty-state">⚠️ Config not set.<br>This page has not been connected to a GitHub repo yet. Edit GH_OWNER and GH_REPO near the top of the script, then reload.</div>';
+    setStatus('error', 'config not set');
+    return;
+  }
   if (!getToken()){
     document.getElementById('schedule').innerHTML =
       '<div class="empty-state">Add your GitHub token above to load and edit the schedule.</div>';
