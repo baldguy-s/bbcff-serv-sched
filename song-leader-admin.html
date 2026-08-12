@@ -20,7 +20,28 @@
     --line: rgba(0,0,0,0.10);
     --card-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.05);
   }
+  body.dark-mode{
+    --paper:#17181A;
+    --red:#C6505C;
+    --red-deep:#A85560;
+    --banner-gray:#4A4A4A;
+    --offwhite:#232426;
+    --ink:#F0EFEC;
+    --slate:#A3A3A3;
+    --line: rgba(255,255,255,0.12);
+  }
+  body.dark-mode .service-card{ background:#1F2022; }
+  body.dark-mode .special-form{ background:#1F2022; }
+  body.dark-mode .name-input{ background:#232426; color:var(--ink); }
+  body.dark-mode .chip-btn{ background:#232426; color:var(--ink); }
+  .chip-btn{
+    background:white; border:1px solid var(--line); color:var(--slate);
+    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.74rem;
+    padding:6px 11px; border-radius:20px; cursor:pointer; white-space:nowrap;
+  }
+  .chip-btn.active{ background:var(--ink); color:white; border-color:var(--ink); }
   *{box-sizing:border-box;}
+  html{ font-size:16px; }
   html,body{margin:0;padding:0;}
   body{
     background:var(--paper);
@@ -236,6 +257,13 @@
     <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Synced</span></div>
     <button id="changeTokenBtn" style="background:var(--red);color:#fff;border:none;font-family:'Source Sans 3',sans-serif;font-weight:600;font-size:.8rem;padding:9px 14px;border-radius:5px;cursor:pointer;">Change GitHub Token</button>
   </div>
+  <div class="toolbar-row" style="justify-content:flex-start; gap:6px; flex-wrap:wrap;">
+    <span class="control-label">Text Size</span>
+    <button class="chip-btn" id="sizeNormalBtn">Normal</button>
+    <button class="chip-btn" id="sizeLargeBtn">Large</button>
+    <button class="chip-btn" id="sizeLargestBtn">Largest</button>
+    <button class="chip-btn" id="darkModeBtn">☾ Dark Mode</button>
+  </div>
 </div>
 
 <div class="filter-bar" id="filterBar">
@@ -290,6 +318,38 @@ const FILTER_DEFS = [
   { type:'special',    label:'Special' }
 ];
 const TYPE_RANK = { sunday_am:0, sunday_pm:1, wednesday:2, special:3 };
+
+const TEXT_SIZE_KEY = 'schedule_text_size';
+const TEXT_SIZES = { normal: '16px', large: '19px', largest: '23px' };
+const VALID_SIZES = ['normal','large','largest'];
+
+function applyTextSize(size){
+  if (!VALID_SIZES.includes(size)) size = 'normal';
+  document.documentElement.style.fontSize = TEXT_SIZES[size];
+  localStorage.setItem(TEXT_SIZE_KEY, size);
+  ['sizeNormalBtn','sizeLargeBtn','sizeLargestBtn'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  const btnId = { normal:'sizeNormalBtn', large:'sizeLargeBtn', largest:'sizeLargestBtn' }[size];
+  document.getElementById(btnId).classList.add('active');
+}
+
+document.getElementById('sizeNormalBtn').addEventListener('click', () => applyTextSize('normal'));
+document.getElementById('sizeLargeBtn').addEventListener('click', () => applyTextSize('large'));
+document.getElementById('sizeLargestBtn').addEventListener('click', () => applyTextSize('largest'));
+applyTextSize(localStorage.getItem(TEXT_SIZE_KEY) || 'normal');
+
+const DARK_MODE_KEY = 'schedule_dark_mode';
+function applyDarkMode(on){
+  document.body.classList.toggle('dark-mode', on);
+  localStorage.setItem(DARK_MODE_KEY, on ? '1' : '0');
+  document.getElementById('darkModeBtn').textContent = on ? '☀ Light Mode' : '☾ Dark Mode';
+  document.getElementById('darkModeBtn').classList.toggle('active', on);
+}
+document.getElementById('darkModeBtn').addEventListener('click', () => {
+  applyDarkMode(!document.body.classList.contains('dark-mode'));
+});
+applyDarkMode(localStorage.getItem(DARK_MODE_KEY) === '1');
 
 function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
 function setToken(t){ localStorage.setItem(TOKEN_KEY, t); }

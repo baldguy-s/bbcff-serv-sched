@@ -20,7 +20,30 @@
     --line: rgba(0,0,0,0.10);
     --card-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.05);
   }
+  body.dark-mode{
+    --paper:#17181A;
+    --red:#C6505C;
+    --red-deep:#A85560;
+    --banner-gray:#4A4A4A;
+    --offwhite:#232426;
+    --ink:#F0EFEC;
+    --slate:#A3A3A3;
+    --line: rgba(255,255,255,0.12);
+  }
+  body.dark-mode .service-card{ background:#1F2022; }
+  body.dark-mode .special-form{ background:#1F2022; }
+  body.dark-mode .name-input,
+  body.dark-mode .music-select,
+  body.dark-mode .seg button{ background:#232426; color:var(--ink); }
+  body.dark-mode .chip-btn{ background:#232426; color:var(--ink); }
+  .chip-btn{
+    background:white; border:1px solid var(--line); color:var(--slate);
+    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.74rem;
+    padding:6px 11px; border-radius:20px; cursor:pointer; white-space:nowrap;
+  }
+  .chip-btn.active{ background:var(--ink); color:white; border-color:var(--ink); }
   *{box-sizing:border-box;}
+  html{ font-size:16px; }
   html,body{margin:0;padding:0;}
   body{
     background:var(--paper);
@@ -347,6 +370,13 @@
     <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Synced</span></div>
     <button class="add-btn" id="openSpecialBtn">+ Add Special Service</button>
   </div>
+  <div class="toolbar-row" style="justify-content:flex-start; gap:6px; flex-wrap:wrap;">
+    <span class="control-label">Text Size</span>
+    <button class="chip-btn" id="sizeNormalBtn">Normal</button>
+    <button class="chip-btn" id="sizeLargeBtn">Large</button>
+    <button class="chip-btn" id="sizeLargestBtn">Largest</button>
+    <button class="chip-btn" id="darkModeBtn">☾ Dark Mode</button>
+  </div>
   <div class="toolbar-row" style="justify-content:flex-end; gap:14px;">
     <button id="printWeekBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Print This Week</button>
     <button id="printMonthBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Print This Month</button>
@@ -436,6 +466,38 @@ const FILTER_DEFS = [
   { type:'wednesday',  label:'Wednesday' },
   { type:'special',    label:'Special' }
 ];
+
+const TEXT_SIZE_KEY = 'schedule_text_size';
+const TEXT_SIZES = { normal: '16px', large: '19px', largest: '23px' };
+const VALID_SIZES = ['normal','large','largest'];
+
+function applyTextSize(size){
+  if (!VALID_SIZES.includes(size)) size = 'normal';
+  document.documentElement.style.fontSize = TEXT_SIZES[size];
+  localStorage.setItem(TEXT_SIZE_KEY, size);
+  ['sizeNormalBtn','sizeLargeBtn','sizeLargestBtn'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  const btnId = { normal:'sizeNormalBtn', large:'sizeLargeBtn', largest:'sizeLargestBtn' }[size];
+  document.getElementById(btnId).classList.add('active');
+}
+
+document.getElementById('sizeNormalBtn').addEventListener('click', () => applyTextSize('normal'));
+document.getElementById('sizeLargeBtn').addEventListener('click', () => applyTextSize('large'));
+document.getElementById('sizeLargestBtn').addEventListener('click', () => applyTextSize('largest'));
+applyTextSize(localStorage.getItem(TEXT_SIZE_KEY) || 'normal');
+
+const DARK_MODE_KEY = 'schedule_dark_mode';
+function applyDarkMode(on){
+  document.body.classList.toggle('dark-mode', on);
+  localStorage.setItem(DARK_MODE_KEY, on ? '1' : '0');
+  document.getElementById('darkModeBtn').textContent = on ? '☀ Light Mode' : '☾ Dark Mode';
+  document.getElementById('darkModeBtn').classList.toggle('active', on);
+}
+document.getElementById('darkModeBtn').addEventListener('click', () => {
+  applyDarkMode(!document.body.classList.contains('dark-mode'));
+});
+applyDarkMode(localStorage.getItem(DARK_MODE_KEY) === '1');
 
 function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
 function setToken(t){ localStorage.setItem(TOKEN_KEY, t); }
@@ -863,7 +925,6 @@ function nameInput(id, path, value, placeholder){
 function getNameDirectory(){
   const names = new Set();
   entries.forEach(e => {
-    (e.songLeaders || []).forEach(p => p.name && names.add(p.name.trim()));
     (e.speakers || []).forEach(p => p.name && names.add(p.name.trim()));
     (e.singers || []).forEach(p => p.name && names.add(p.name.trim()));
     (e.singersAfterPrayer || []).forEach(p => p.name && names.add(p.name.trim()));
@@ -1007,8 +1068,6 @@ function buildCard(entry, isFirst, isLast){
   const details = document.createElement('div');
   details.className = 'card-details';
 
-  details.appendChild(buildRepeatableSongLeaders(entry));
-
   if (entry.type === 'sunday_pm'){
     details.appendChild(buildRepeatableSingers(entry, 'singersAfterPrayer', 'Singer(s) — After Prayer'));
     details.appendChild(buildRepeatableSingers(entry, 'singersBeforeMessage', 'Singer(s) — Before Message'));
@@ -1039,26 +1098,6 @@ function rowRemoveButton(onClick){
   btn.innerHTML = '&#10005;';
   btn.addEventListener('click', onClick);
   return btn;
-}
-
-function buildRepeatableSongLeaders(entry){
-  const section = document.createElement('div');
-  section.className = 'field-section';
-  const label = document.createElement('div');
-  label.className = 'section-label';
-  label.textContent = 'Song Leader(s)';
-  section.appendChild(label);
-
-  entry.songLeaders.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'field-row repeat-item';
-    row.appendChild(nameInput(null, null, item.name, 'Song leader name'));
-    row.lastChild.addEventListener('input', (ev) => setArrayItemField(entry.id, 'songLeaders', item.id, 'name', ev.target.value));
-    row.appendChild(rowRemoveButton(() => removeArrayItem(entry.id, 'songLeaders', item.id)));
-    section.appendChild(row);
-  });
-  section.appendChild(addRowButton('Add Song Leader', () => addArrayItem(entry.id, 'songLeaders', makeSongLeader)));
-  return section;
 }
 
 function buildRepeatableSpeakers(entry){
@@ -1274,8 +1313,6 @@ function icsEscape(str){
 
 function printSummaryLine(entry){
   const parts = [];
-  const sl = (entry.songLeaders || []).map(p => p.name).filter(Boolean);
-  if (sl.length) parts.push('Song Leader: ' + sl.join(', '));
   const sp = (entry.speakers || []).map(p => p.name).filter(Boolean);
   if (sp.length) parts.push('Speaker: ' + sp.join(', '));
   if (entry.type === 'sunday_pm'){
