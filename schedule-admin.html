@@ -98,6 +98,7 @@
     display:flex;flex-direction:column;gap:8px;
   }
   .toolbar-row{ display:flex; gap:10px; align-items:center; justify-content:space-between; }
+  .control-row-inline{ justify-content:flex-start; flex-wrap:wrap; gap:6px; }
   .status-pill{
     font-size:.72rem; color:var(--slate); letter-spacing:.03em;
     display:flex; align-items:center; gap:6px;
@@ -374,18 +375,18 @@
     <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Synced</span></div>
     <button class="add-btn" id="openSpecialBtn">+ Add Special Service</button>
   </div>
-  <div class="toolbar-row" style="justify-content:flex-start; gap:6px; flex-wrap:wrap;">
-    <span class="control-label">Text Size</span>
-    <button class="chip-btn" id="sizeNormalBtn">Normal</button>
-    <button class="chip-btn" id="sizeLargeBtn">Large</button>
-    <button class="chip-btn" id="sizeLargestBtn">Largest</button>
-    <button class="chip-btn" id="darkModeBtn">☾ Dark Mode</button>
-  </div>
   <div class="toolbar-row" style="justify-content:flex-end; gap:14px;">
     <button id="printWeekBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Print This Week</button>
     <button id="printMonthBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Print This Month</button>
     <button id="managePeopleBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Manage People</button>
     <button id="changeTokenBtn" style="background:none;border:none;color:var(--slate);font-size:.7rem;text-decoration:underline;cursor:pointer;padding:2px 0;">Change GitHub Token</button>
+  </div>
+  <div class="toolbar-row control-row-inline">
+    <span class="control-label">Text Size</span>
+    <button class="chip-btn" id="sizeNormalBtn">Normal</button>
+    <button class="chip-btn" id="sizeLargeBtn">Large</button>
+    <button class="chip-btn" id="sizeLargestBtn">Largest</button>
+    <button class="chip-btn" id="darkModeBtn">☾ Dark Mode</button>
   </div>
 </div>
 
