@@ -9,19 +9,23 @@
 <style>
   :root{
     --paper:#FAFAFA;
-    --paper-alt:#F1F1F1;
+    --paper-alt:#F0F0F0;
+    --card:#FFFFFF;
     --red:#A3313B;
     --red-deep:#7E2530;
     --banner-gray:#B5B5B5;
-    --offwhite:#F7F7F7;
+    --offwhite:#F0F0F0;
     --charcoal:#3A3A3A;
     --ink:#1A1A1A;
     --slate:#6B6B6B;
     --line: rgba(0,0,0,0.10);
     --card-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.05);
+    --font-display: "Playfair Display", Georgia, serif;
+    --font-body: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  body.dark-mode{
+  :root.dark-mode{
     --paper:#17181A;
+    --card:#1F2022;
     --red:#C6505C;
     --red-deep:#A85560;
     --banner-gray:#4A4A4A;
@@ -30,25 +34,19 @@
     --slate:#A3A3A3;
     --line: rgba(255,255,255,0.12);
   }
-  body.dark-mode .service-card{ background:#1F2022; }
-  body.dark-mode .special-form{ background:#1F2022; }
-  body.dark-mode .name-input,
-  body.dark-mode .music-select,
-  body.dark-mode .seg button{ background:#232426; color:var(--ink); }
-  body.dark-mode .chip-btn{ background:#232426; color:var(--ink); }
   .chip-btn{
-    background:white; border:1px solid var(--line); color:var(--slate);
-    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.74rem;
+    background:var(--offwhite); border:1px solid var(--line); color:var(--slate);
+    font-family:var(--font-body); font-weight:600; font-size:.74rem;
     padding:6px 11px; border-radius:20px; cursor:pointer; white-space:nowrap;
   }
-  .chip-btn.active{ background:var(--ink); color:white; border-color:var(--ink); }
+  .chip-btn.active{ background:var(--ink); color:var(--card); border-color:var(--ink); }
   *{box-sizing:border-box;}
   html{ font-size:16px; }
   html,body{margin:0;padding:0;}
   body{
     background:var(--paper);
     color:var(--ink);
-    font-family:'Source Sans 3', system-ui, sans-serif;
+    font-family:var(--font-body);
     -webkit-font-smoothing:antialiased;
     padding-bottom:80px;
   }
@@ -71,7 +69,7 @@
     margin:0 auto 8px;
   }
   header.site h1{
-    font-family:'Playfair Display', serif;
+    font-family:var(--font-display);
     font-weight:800;
     font-size:1.05rem;
     margin:2px 0 3px;
@@ -106,7 +104,7 @@
     background:var(--red);
     color:#FFFFFF;
     border:none;
-    font-family:'Source Sans 3', sans-serif;
+    font-family:var(--font-body);
     font-weight:600;
     font-size:.85rem;
     padding:10px 16px;
@@ -120,7 +118,7 @@
   .special-form{
     max-width:640px;margin:6px auto 0;
     padding:14px 16px;
-    background:white;
+    background:var(--card);
     border:1px solid var(--line);
     border-left:4px solid var(--ink);
     border-radius:5px;
@@ -132,10 +130,10 @@
   .special-form label{ font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--slate); display:block; margin-bottom:3px; }
   .special-form input[type="text"], .special-form input[type="date"]{
     width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px;
-    font-family:'Source Sans 3',sans-serif; font-size:.95rem; background:var(--paper);
+    font-family:var(--font-body); font-size:.95rem; background:var(--card);
   }
   .special-form .btn-row{ display:flex; gap:8px; justify-content:flex-end; margin-top:2px; }
-  .special-form button{ font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.8rem; padding:8px 14px; border-radius:4px; border:none; cursor:pointer; }
+  .special-form button{ font-family:var(--font-body); font-weight:600; font-size:.8rem; padding:8px 14px; border-radius:4px; border:none; cursor:pointer; }
   .special-form .save{ background:var(--red); color:white; }
   .special-form .cancel{ background:transparent; color:var(--slate); border:1px solid var(--line); }
 
@@ -149,7 +147,7 @@
   .month-divider:first-of-type{ margin-top:20px; }
   .month-divider .line{ display:none; }
   .month-divider .label{
-    font-family:'Playfair Display', serif;
+    font-family:var(--font-display);
     font-weight:800;
     font-size:1.2rem;
     letter-spacing:.1em;
@@ -171,7 +169,7 @@
   /* ---------- Service card ---------- */
   .service-card{
     display:flex;
-    background:white;
+    background:var(--card);
     border-radius:6px;
     box-shadow:var(--card-shadow);
     margin-bottom:14px;
@@ -191,7 +189,7 @@
     margin-bottom:12px; gap:10px;
   }
   .card-date{
-    font-family:'Playfair Display', serif;
+    font-family:var(--font-display);
     font-weight:700;
     font-size:1.1rem;
     color:var(--ink);
@@ -225,7 +223,7 @@
 
   .special-name-input{
     width:100%;
-    font-family:'Playfair Display', serif;
+    font-family:var(--font-display);
     font-weight:700;
     font-size:1.05rem;
     color:var(--ink);
@@ -261,7 +259,7 @@
   .row-remove-btn:active{ opacity:1; color:var(--red); }
   .add-row-btn{
     background:none; border:1px dashed var(--line); color:var(--red-deep);
-    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.78rem;
+    font-family:var(--font-body); font-weight:600; font-size:.78rem;
     padding:7px 12px; border-radius:4px; cursor:pointer; margin-top:2px;
   }
   .add-row-btn:active{ background:var(--offwhite); }
@@ -269,15 +267,15 @@
   .name-input{
     flex:1; min-width:120px;
     padding:8px 10px; border:1px solid var(--line); border-radius:4px;
-    font-size:.92rem; font-family:'Source Sans 3',sans-serif;
-    background:var(--paper);
+    font-size:.92rem; font-family:var(--font-body);
+    background:var(--card);
   }
   .name-input:focus{ outline:2px solid var(--red); outline-offset:1px; }
 
   select.music-select{
     padding:8px 8px; border:1px solid var(--line); border-radius:4px;
-    font-size:.85rem; font-family:'Source Sans 3',sans-serif;
-    background:white; color:var(--ink);
+    font-size:.85rem; font-family:var(--font-body);
+    background:var(--card); color:var(--ink);
     flex-shrink:0;
   }
 
@@ -285,12 +283,12 @@
     display:inline-flex; border:1px solid var(--line); border-radius:4px; overflow:hidden; flex-shrink:0;
   }
   .seg button{
-    border:none; background:white; color:var(--slate);
+    border:none; background:var(--card); color:var(--slate);
     font-size:.78rem; font-weight:600; padding:8px 11px; cursor:pointer;
-    font-family:'Source Sans 3',sans-serif;
+    font-family:var(--font-body);
   }
   .seg button + button{ border-left:1px solid var(--line); }
-  .seg button.active{ background:var(--ink); color:white; }
+  .seg button.active{ background:var(--ink); color:var(--card); }
   .seg button.active.ss-yes{ background:var(--red); }
   .seg button.active.ss-no{ background:var(--slate); }
 
@@ -318,11 +316,11 @@
     display:flex; flex-wrap:wrap; gap:6px; align-items:center;
   }
   .filter-chip{
-    background:white; border:1px solid var(--line); color:var(--slate);
-    font-family:'Source Sans 3',sans-serif; font-weight:600; font-size:.74rem;
+    background:var(--offwhite); border:1px solid var(--line); color:var(--slate);
+    font-family:var(--font-body); font-weight:600; font-size:.74rem;
     padding:6px 11px; border-radius:20px; cursor:pointer; white-space:nowrap;
   }
-  .filter-chip.active{ background:var(--ink); color:white; border-color:var(--ink); }
+  .filter-chip.active{ background:var(--ink); color:var(--card); border-color:var(--ink); }
   .filter-chip.type-sunday_am.active{ background:var(--red); border-color:var(--red); }
   .filter-chip.type-sunday_pm.active{ background:var(--red-deep); border-color:var(--red-deep); }
   .filter-chip.type-wednesday.active{ background:var(--banner-gray); border-color:var(--banner-gray); color:var(--ink); }
@@ -351,7 +349,7 @@
   #printArea{ display:none; }
   @media print {
     body > *:not(#printArea){ display:none !important; }
-    #printArea{ display:block !important; font-family:'Source Sans 3', sans-serif; color:#000; }
+    #printArea{ display:block !important; font-family:var(--font-body); color:#000; }
   }
 </style>
 </head>
@@ -489,13 +487,16 @@ applyTextSize(localStorage.getItem(TEXT_SIZE_KEY) || 'normal');
 
 const DARK_MODE_KEY = 'schedule_dark_mode';
 function applyDarkMode(on){
-  document.body.classList.toggle('dark-mode', on);
+  /* On <html>, not <body>: html paints the page canvas from var(--paper) and
+     can't see a variable redefined on its own child, so toggling on body left
+     a light strip around a dark page. */
+  document.documentElement.classList.toggle('dark-mode', on);
   localStorage.setItem(DARK_MODE_KEY, on ? '1' : '0');
   document.getElementById('darkModeBtn').textContent = on ? '☀ Light Mode' : '☾ Dark Mode';
   document.getElementById('darkModeBtn').classList.toggle('active', on);
 }
 document.getElementById('darkModeBtn').addEventListener('click', () => {
-  applyDarkMode(!document.body.classList.contains('dark-mode'));
+  applyDarkMode(!document.documentElement.classList.contains('dark-mode'));
 });
 applyDarkMode(localStorage.getItem(DARK_MODE_KEY) === '1');
 
@@ -1336,7 +1337,7 @@ function openPrintView(days){
     .filter(e => e.date >= start && e.date < end)
     .sort((a,b) => (a.order||0) - (b.order||0));
 
-  let html = `<h1 style="font-family:'Playfair Display',serif;">Bible Baptist Church — Schedule</h1>`;
+  let html = `<h1 style="font-family:var(--font-display);">Bible Baptist Church — Schedule</h1>`;
   html += `<p style="color:#666;">${formatDate(start)} through ${formatDate(end)}</p>`;
   if (items.length === 0){
     html += '<p>No services scheduled in this range.</p>';
