@@ -18,6 +18,12 @@
     --ink:#1A1A1A;
     --slate:#6B6B6B;
     --line: rgba(0,0,0,0.10);
+
+    /* The banner keeps these values in dark mode too. The church logo has dark
+       "CHURCH" lettering baked into the image, which disappears against a dark
+       banner, so the banner stays light gray in both themes (matches choir-vault). */
+    --banner-bg:#B5B5B5;
+    --banner-fg:#1A1A1A;
     --ok:#2F6B3A;
     --ok-bg:#E7F3E9;
     --warn-bg:#FBEAEA;
@@ -49,8 +55,8 @@
     padding-bottom:60px;
   }
   header.site{
-    background:var(--banner-gray);
-    color:var(--ink);
+    background:var(--banner-bg);
+    color:var(--banner-fg);
     padding:20px 18px 18px;
     text-align:center;
     border-bottom:1px solid rgba(0,0,0,0.15);
@@ -60,6 +66,7 @@
     font-family:var(--font-display);
     font-weight:800; font-size:1.05rem;
     margin:2px 0 3px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--banner-fg);
   }
   header.site p{ margin:0; font-size:.72rem; letter-spacing:.13em; text-transform:uppercase; color:var(--charcoal); }
 
