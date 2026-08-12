@@ -55,9 +55,9 @@ person records). `special` entries additionally carry a `specialName`.
 `schedule-data.json` by `song-leader-admin.html`'s merge step) but only carry `songLeaders` — it's a
 derived, narrower view of the master schedule, not an independent source of truth.
 
-`schedule-admin.html` also references a `schedule-people.json` (`GH_PEOPLE_PATH`) for a saved-names
-directory used in autocomplete; this file doesn't exist in the repo yet — it's created on first
-write from that page.
+`schedule-admin.html` also references `schedule-people.json` (`GH_PEOPLE_PATH`) for a saved-names
+directory used in autocomplete: a flat JSON array of name strings, manually added/removed from that
+page's UI.
 
 ## Conventions specific to this repo
 
