@@ -19,9 +19,25 @@ https://baldguy-s.github.io/bbcff-serv-sched/
 - `schedule-data.json`, `song-leader-data.json` — the two data stores (JSON arrays of entry
   objects), committed directly to this repo.
 
-There is no local dev server and nothing to install. To work on a page, open the HTML file directly
-in a browser (or serve the folder statically) and point it at this repo via the GitHub token flow
-described below.
+There is no local dev server and nothing to install for the app itself. To work on a page, open the
+HTML file directly in a browser (or serve the folder statically) and point it at this repo via the
+GitHub token flow described below.
+
+## Commands
+
+The only tooling in this repo is a post-deploy sanity check (`package.json` / `scripts/`):
+
+```
+npm install                        # one-time
+npx playwright install chromium-headless-shell   # one-time, downloads a browser binary
+npm run check-site                 # loads the live GitHub Pages site headlessly, reports JS/console/request errors
+```
+
+`check-site` hits the *deployed* `https://baldguy-s.github.io/bbcff-serv-sched/` pages, not local
+files — run it after pushing to `main` to confirm the deploy actually rendered without errors. A
+plain HTTP fetch of these pages isn't a valid check on its own: the schedule content is rendered
+client-side after fetching the JSON data files, so tools that don't execute JS (e.g. WebFetch) will
+misreport a working page as blank/broken.
 
 ## Persistence model — read this before touching data flow
 

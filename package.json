@@ -1,0 +1,10 @@
+{
+  "name": "bbcff-serv-sched",
+  "private": true,
+  "scripts": {
+    "check-site": "node scripts/check-site.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.62.1"
+  }
+}
